@@ -5,7 +5,7 @@ ASFLAGS = -f elf32
 LD      = ld
 LDFLAGS = -m elf_i386 -T linker.ld -nostdlib
 
-OBJS = boot.o kernel.o honeyfs.o
+OBJS = boot.o kernel.o honeyfs.o editor.o
 
 all: honeyos.iso
 
@@ -17,6 +17,9 @@ kernel.o: kernel/main.c
 
 honeyfs.o: kernel/honeyfs.c
 	$(CC) $(CFLAGS) -c kernel/honeyfs.c -o honeyfs.o
+
+editor.o: kernel/editor.c
+	$(CC) $(CFLAGS) -c kernel/editor.c -o editor.o
 
 honeyos.bin: $(OBJS)
 	$(LD) $(LDFLAGS) -o honeyos.bin $(OBJS)

@@ -1,11 +1,12 @@
 /* ============================================================
  * HoneyOS Kernel - main.c
- * Interactive Shell + HoneyFS
+ * Interactive Shell + HoneyFS + HoneyEdit
  * CMSC 125 - Phase 2
  * ============================================================ */
 
 #include "honeyfs.h"
 #include "keyboard.h"
+#include "editor.h"
 
 #define VGA_ADDRESS     0xB8000
 #define VGA_WIDTH       80
@@ -91,7 +92,8 @@ void vga_backspace() {
  * SHELL HELPERS
  * ============================================================ */
 void print_prompt() {
-    print("\nhoney> ", MAKE_COLOR(COLOR_YELLOW, COLOR_BLACK));
+    // Changed from YELLOW to LIGHT_MAGENTA
+    print("\nhoney> ", MAKE_COLOR(COLOR_LIGHT_MAGENTA, COLOR_BLACK));
 }
 
 void print_ok(const char *msg) {
@@ -116,6 +118,7 @@ void cmd_help() {
     print("  write <file.txt> <text>   ", cyan);  println("- write text to file",        white);
     print("  read <file.txt>           ", cyan);  println("- read file contents",        white);
     print("  delete <file.txt>         ", cyan);  println("- delete a file",             white);
+    print("  nano <file.txt>           ", cyan);  println("- open text editor",          white);
     print("  ls                        ", cyan);  println("- list all files",            white);
     print("  clear                     ", cyan);  println("- clear the screen",          white);
     print("  help                      ", cyan);  println("- show this help menu",       white);
@@ -151,22 +154,18 @@ void cmd_ls() {
  * Parses: "cmd arg1 arg2..."
  * ============================================================ */
 
-/* Find position of first space, return -1 if none */
 static int first_space(const char *s) {
     for (int i = 0; s[i]; i++) if (s[i] == ' ') return i;
     return -1;
 }
 
-/* Get second word (after first space) */
 static void get_arg1(const char *input, char *out, int max) {
     int sp = first_space(input);
     if (sp < 0) { out[0] = '\0'; return; }
     str_cpy(out, input + sp + 1, max);
-    /* Cut at next space */
     for (int i = 0; out[i]; i++) if (out[i] == ' ') { out[i] = '\0'; break; }
 }
 
-/* Get everything after first two words */
 static void get_arg2(const char *input, char *out, int max) {
     int sp1 = first_space(input);
     if (sp1 < 0) { out[0] = '\0'; return; }
@@ -194,6 +193,26 @@ void handle_command(const char *input) {
 
     } else if (str_cmp(input, "clear") == 0) {
         vga_clear();
+
+    } else if (str_starts(input, "nano ")) {
+        get_arg1(input, arg1, FS_MAX_FILENAME);
+        if (str_len(arg1) == 0) { 
+            print_err("Usage: nano <file.txt>"); 
+            return; 
+        }
+        
+        // Auto-create file if it doesn't exist yet
+        char temp_buf[2];
+        if (fs_read(&honey_fs, arg1, temp_buf) == FS_ERR_NOT_FOUND) {
+            fs_create(&honey_fs, arg1);
+        }
+
+        // Launch Editor
+        editor_start(&honey_fs, arg1);
+        
+        // Restore shell screen upon exit
+        vga_clear();
+        print_ok("Exited HoneyEdit. File saved.");
 
     } else if (str_starts(input, "create ")) {
         get_arg1(input, arg1, FS_MAX_FILENAME);
@@ -268,37 +287,39 @@ void init_filesystem() { fs_init(&honey_fs); println("  [OK] HoneyFS initialized
 void kmain() {
     init_screen();
 
-    unsigned char yellow = MAKE_COLOR(COLOR_YELLOW,     COLOR_BLACK);
-    unsigned char white  = MAKE_COLOR(COLOR_WHITE,      COLOR_BLACK);
-    unsigned char cyan   = MAKE_COLOR(COLOR_LIGHT_CYAN, COLOR_BLACK);
-    unsigned char green  = MAKE_COLOR(COLOR_LIGHT_GREEN,COLOR_BLACK);
+    /* New Synthwave Color Palette */
+    unsigned char banner_color = MAKE_COLOR(COLOR_LIGHT_MAGENTA, COLOR_BLACK);
+    unsigned char accent_color = MAKE_COLOR(COLOR_LIGHT_CYAN,    COLOR_BLACK);
+    unsigned char text_color   = MAKE_COLOR(COLOR_WHITE,         COLOR_BLACK);
 
     /* Banner */
-    print_line('=', 60, yellow);
-    println("", white);
-    println("      888    888                                     ", yellow);
-    println("      888    888                                     ", yellow);
-    println("      8888888888  .d88b.  88888b.   .d88b. 888  888 ", yellow);
-    println("      888    888 d88  88b 888  88b d8P  Y8b 888  888", yellow);
-    println("      888    888 888  888 888  888 88888888 888  888", yellow);
-    println("      888    888 Y88..88P 888  888 Y8b.     Y88b 888", yellow);
-    println("      888    888  'Y88P'  888  888  'Y8888   'Y88888", yellow);
-    println("", white);
-    println("               O P E R A T I N G   S Y S T E M     ", cyan);
-    println("                      Phase 2 - CMSC 125            ", white);
-    println("", white);
-    print_line('=', 60, yellow);
-    println("", white);
+    print_line('=', 60, accent_color);
+    println("", text_color);
+    println("      888    888                                     ", banner_color);
+    println("      888    888                                     ", banner_color);
+    println("      8888888888  .d88b.  88888b.   .d88b. 888  888 ", banner_color);
+    println("      888    888 d88  88b 888  88b d8P  Y8b 888  888", banner_color);
+    println("      888    888 888  888 888  888 88888888 888  888", banner_color);
+    println("      888    888 Y88..88P 888  888 Y8b.     Y88b 888", banner_color);
+    println("      888    888  'Y88P'  888  888  'Y8888   'Y88888", banner_color);
+    println("", text_color);
+    println("               O P E R A T I N G   S Y S T E M     ", accent_color);
+    println("                     Phase 2 - CMSC 125             ", text_color);
+    println("", text_color);
+    print_line('=', 60, accent_color);
+    println("", text_color);
 
     /* Boot */
-    println("Booting HoneyOS...", white);
-    println("", white);
+    println("Booting HoneyOS...", text_color);
+    println("", text_color);
     init_kernel();
     init_filesystem();
-    println("", white);
-    print_line('-', 60, yellow);
-    println("  HoneyOS is ready! Type 'help' for commands.", cyan);
-    print_line('-', 60, yellow);
+    println("", text_color);
+    print_line('-', 60, accent_color);
+    
+    // Give the "Ready" message a nice pop of color
+    println("  HoneyOS is ready! Type 'help' for commands.", banner_color);
+    print_line('-', 60, accent_color);
 
     /* Shell loop */
     char input[INPUT_MAX];
@@ -308,3 +329,4 @@ void kmain() {
         handle_command(input);
     }
 }
+
