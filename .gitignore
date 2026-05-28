@@ -1,0 +1,15 @@
+# Build outputs
+*.o
+*.bin
+honeyos.iso
+
+# Virtual disk images
+*.img
+*.vdi
+
+# Extracted/generated ISO contents
+iso-extract/
+isodir/boot/honeyos.bin
+
+# Host/editor noise
+.DS_Store

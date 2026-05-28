@@ -1,0 +1,6 @@
+*.o
+*.bin
+*.img
+*.vdi
+honeyos.iso
+iso-extract/
