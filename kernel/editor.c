@@ -7,8 +7,8 @@
 #define VGA_HEIGHT  25
 
 // Editor Theme Colors
-#define COLOR_TEXT    0x1F // White text on Blue background
-#define COLOR_STATUS  0xF0 // Black text on White background
+#define COLOR_TEXT    0x0F // White text on Black background
+#define COLOR_STATUS  0x0F // White text on Black background
 #define COLOR_CURSOR  0x70 // Gray background for the cursor
 
 static char text_buffer[EDITOR_MAX_ROWS][EDITOR_MAX_COLS];
