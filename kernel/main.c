@@ -125,8 +125,18 @@ void handle_command(const char *input) {
         if (arg1[0] == '\0') {
             print_err("Missing filename.");
         } else {
-            editor_start(&honey_fs, arg1);
-            shell_reset_screen();
+            FAT32DirEntry entry;
+            int result = fs_find_entry(&honey_fs, arg1, &entry);
+            if (result == FS_OK) {
+                editor_start(&honey_fs, arg1);
+                shell_reset_screen();
+            } else if (result == FS_ERR_NOT_FOUND) {
+                print_err("File not found.");
+            } else if (result == FS_ERR_NAME) {
+                print_err("Invalid filename.");
+            } else {
+                print_err("Could not open file.");
+            }
         }
     } else if (str_starts(input, "delete ")) {
         get_arg1(input, arg1, FS_MAX_FILENAME);
