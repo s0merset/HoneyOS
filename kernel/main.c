@@ -6,6 +6,7 @@
 #include "honeyfs.h"
 #include "keyboard.h"
 #include "honeyui.h"
+#include "editor.h"
 
 #define INPUT_MAX 256
 
@@ -44,6 +45,15 @@ void print_prompt() { ui_prompt("honey:/ > ", &HONEYUI_THEME); }
 void print_ok(const char *msg) { ui_print("  [OK] ", HONEYUI_THEME.success); ui_println(msg, HONEYUI_THEME.text); }
 void print_err(const char *msg) { ui_print("  [ERR] ", HONEYUI_THEME.danger); ui_println(msg, HONEYUI_THEME.text); }
 
+static void shell_reset_screen() {
+    ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
+    ui_center("HoneyOS File Manager", 1, HONEYUI_THEME.frame);
+    ui_rule(8, 3, 64, HONEYUI_THEME.accent);
+    ui_set_cursor(2, 5);
+    ui_println("Type 'help' to view commands. Type 'exit' to return.", HONEYUI_THEME.text);
+    ui_status_bar("File Manager Shell", "exit: menu", &HONEYUI_THEME);
+}
+
 void cmd_help() {
     ui_println("", HONEYUI_THEME.text);
     ui_rule(8, ui_get_cursor_y(), 64, HONEYUI_THEME.frame);
@@ -54,6 +64,7 @@ void cmd_help() {
     ui_print("  ls                        ", HONEYUI_THEME.accent);  ui_println("- list all files", HONEYUI_THEME.text);
     ui_print("  create <file.txt>         ", HONEYUI_THEME.accent);  ui_println("- create an empty file", HONEYUI_THEME.text);
     ui_print("  write <file.txt> <text>   ", HONEYUI_THEME.accent);  ui_println("- write text to a file", HONEYUI_THEME.text);
+    ui_print("  edit <file.txt>           ", HONEYUI_THEME.accent);  ui_println("- open the text editor", HONEYUI_THEME.text);
     ui_print("  read <file.txt>           ", HONEYUI_THEME.accent);  ui_println("- read file contents", HONEYUI_THEME.text);
     ui_print("  delete <file.txt>         ", HONEYUI_THEME.accent);  ui_println("- delete a file", HONEYUI_THEME.text);
     ui_print("  clear                     ", HONEYUI_THEME.accent);  ui_println("- clear the screen", HONEYUI_THEME.text);
@@ -109,6 +120,14 @@ void handle_command(const char *input) {
         if (result == FS_OK) print_ok("File written.");
         else if (result == FS_ERR_SIZE) print_err("Text is too large.");
         else print_err("Could not write file.");
+    } else if (str_starts(input, "edit ")) {
+        get_arg1(input, arg1, FS_MAX_FILENAME);
+        if (arg1[0] == '\0') {
+            print_err("Missing filename.");
+        } else {
+            editor_start(&honey_fs, arg1);
+            shell_reset_screen();
+        }
     } else if (str_starts(input, "delete ")) {
         get_arg1(input, arg1, FS_MAX_FILENAME);
         if (fs_delete(&honey_fs, arg1) == FS_OK) print_ok("File deleted.");
@@ -168,7 +187,7 @@ void show_file_browser() {
 void show_command_guide() {
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
     ui_center("Command Guide", 2, HONEYUI_THEME.frame);
-    ui_panel(8, 4, 64, 16, "File Manager Commands", &HONEYUI_THEME);
+    ui_panel(8, 4, 64, 18, "File Manager Commands", &HONEYUI_THEME);
     ui_set_cursor(12, 7);
     ui_print("ls                        ", HONEYUI_THEME.accent); ui_println("show all saved files", HONEYUI_THEME.text);
     ui_set_cursor(12, 9);
@@ -178,20 +197,17 @@ void show_command_guide() {
     ui_set_cursor(12, 13);
     ui_print("read <file.txt>           ", HONEYUI_THEME.accent); ui_println("open a file", HONEYUI_THEME.text);
     ui_set_cursor(12, 15);
-    ui_print("delete <file.txt>         ", HONEYUI_THEME.accent); ui_println("remove a file", HONEYUI_THEME.text);
+    ui_print("edit <file.txt>           ", HONEYUI_THEME.accent); ui_println("edit a file", HONEYUI_THEME.text);
     ui_set_cursor(12, 17);
+    ui_print("delete <file.txt>         ", HONEYUI_THEME.accent); ui_println("remove a file", HONEYUI_THEME.text);
+    ui_set_cursor(12, 19);
     ui_print("exit                      ", HONEYUI_THEME.accent); ui_println("return to main menu", HONEYUI_THEME.text);
     ui_status_bar("Command Guide", "Any key: back", &HONEYUI_THEME);
     wait_for_key();
 }
 
 void launch_shell() {
-    ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
-    ui_center("HoneyOS File Manager", 1, HONEYUI_THEME.frame);
-    ui_rule(8, 3, 64, HONEYUI_THEME.accent);
-    ui_set_cursor(2, 5);
-    ui_println("Type 'help' to view commands. Type 'exit' to return.", HONEYUI_THEME.text);
-    ui_status_bar("File Manager Shell", "exit: menu", &HONEYUI_THEME);
+    shell_reset_screen();
     char input[INPUT_MAX];
     while(1) {
         print_prompt();
