@@ -33,10 +33,6 @@
 #define COLOR_STATUS  0x0F // White text on Black background
 #define COLOR_CURSOR  0x70 // Gray background for the cursor
 
-/* ── Editor Theme Colors ── */
-#define COLOR_TEXT    0x1F    /* White text (0xF) on Blue background (0x1) — main editing area */
-#define COLOR_STATUS  0xF0    /* Black text (0x0) on White background (0xF) — status bar row */
-#define COLOR_CURSOR  0x70    /* Black text on Light Gray background — highlights the cursor position */
 
 /*
  * text_buffer — The in-memory representation of the file being edited.
@@ -133,8 +129,6 @@ void editor_start(HoneyFS *fs, const char* filename) {
 
     // 2. Load existing file if it exists
     // file_buf holds the raw file content as a flat null-terminated string
-    char file_buf[512]; // Match your 512 max limit from main.c
-    for(int i=0; i<512; i++) file_buf[i] = '\0';
     char file_buf[FS_MAX_FILESIZE + 1];
     for (int i = 0; i < FS_MAX_FILESIZE + 1; i++) file_buf[i] = '\0';
     
@@ -165,8 +159,6 @@ void editor_start(HoneyFS *fs, const char* filename) {
     // 3. Main Editor Loop — runs until ESC is pressed
     while(1) {
         editor_refresh();    /* Redraw screen with current buffer state */
-        char key = keyboard_read();    /* Block until user presses a key */
-        editor_refresh();
         int key = keyboard_read_key();
 
         if (key == 27) { // ASCII 27 is ESC
@@ -195,11 +187,6 @@ void editor_start(HoneyFS *fs, const char* filename) {
                 // Add newlines between rows (but not after the last row)
                 if (y < e_cursor_y && idx < 511) file_buf[idx++] = '\n';
                 
-                for (int x = 0; x <= last_char; x++) {
-                    if (idx < FS_MAX_FILESIZE) file_buf[idx++] = text_buffer[y][x];
-                }
-                // Add newlines between rows
-                if (y < last_row && idx < FS_MAX_FILESIZE) file_buf[idx++] = '\n';
             }
             file_buf[idx] = '\0';    /* Null-terminate the flattened string */
             
