@@ -38,55 +38,56 @@
 #define FAT32_BACKUP_BOOT_SECTOR     6       /* Backup boot at sector 6       */
 
 /* ── Derived layout values ── */
-#define FAT32_FAT1_START     FAT32_RESERVED_SECTORS
-#define FAT32_FAT2_START     (FAT32_FAT1_START + FAT32_SECTORS_PER_FAT)
-#define FAT32_DATA_START     (FAT32_FAT2_START + FAT32_SECTORS_PER_FAT)
+#define FAT32_FAT1_START     FAT32_RESERVED_SECTORS    /* FAT1 begins right after the reserved sectors */
+#define FAT32_FAT2_START     (FAT32_FAT1_START + FAT32_SECTORS_PER_FAT)    /* FAT2 is a mirror of FAT1, placed directly after it */
+#define FAT32_DATA_START     (FAT32_FAT2_START + FAT32_SECTORS_PER_FAT)    /* Data clusters start immediately after both FAT copies */
 
 /* ── FAT32 special cluster values ── */
-#define FAT32_CLUSTER_FREE    0x00000000
-#define FAT32_CLUSTER_RSVD    0x00000001
-#define FAT32_CLUSTER_BAD     0x0FFFFFF7
-#define FAT32_CLUSTER_EOF     0x0FFFFFFF  /* End of chain                 */
-#define FAT32_CLUSTER_MASK    0x0FFFFFFF  /* Mask top 4 reserved bits     */
-#define FAT32_MIN_DATA        2           /* Data clusters start at 2     */
-#define FAT32_MAX_CLUSTER     (FAT32_TOTAL_SECTORS / FAT32_SECTORS_PER_CLUSTER)
+#define FAT32_CLUSTER_FREE    0x00000000    /* Cluster is unallocated and available */
+#define FAT32_CLUSTER_RSVD    0x00000001    /* Reserved — never used for file data */
+#define FAT32_CLUSTER_BAD     0x0FFFFFF7    /* Cluster is physically damaged; skip it */
+#define FAT32_CLUSTER_EOF     0x0FFFFFFF    /* End of chain — this is the last cluster of a file */
+#define FAT32_CLUSTER_MASK    0x0FFFFFFF    /* Mask off the top 4 reserved bits when reading FAT entries */
+#define FAT32_MIN_DATA        2             /* Cluster numbers 0 and 1 are reserved; user data starts at 2 */
+#define FAT32_MAX_CLUSTER     (FAT32_TOTAL_SECTORS / FAT32_SECTORS_PER_CLUSTER)    /* Total number of clusters on the disk */
 
 /* ── Directory entry attributes ── */
-#define FAT32_ATTR_READ_ONLY  0x01
-#define FAT32_ATTR_HIDDEN     0x02
-#define FAT32_ATTR_SYSTEM     0x04
-#define FAT32_ATTR_VOLUME_ID  0x08
-#define FAT32_ATTR_DIRECTORY  0x10
-#define FAT32_ATTR_ARCHIVE    0x20
-#define FAT32_ATTR_LFN        0x0F  /* Long filename entry               */
+#define FAT32_ATTR_READ_ONLY  0x01    /* File cannot be written to */
+#define FAT32_ATTR_HIDDEN     0x02    /* File is hidden from normal directory listings */
+#define FAT32_ATTR_SYSTEM     0x04    /* OS system file — should not be moved */
+#define FAT32_ATTR_VOLUME_ID  0x08    /* This entry is the volume label, not a file */
+#define FAT32_ATTR_DIRECTORY  0x10    /* This entry points to a subdirectory cluster chain */
+#define FAT32_ATTR_ARCHIVE    0x20    /* Normal file — set when a file is created or modified */
+#define FAT32_ATTR_LFN        0x0F    /* Long filename entry — all four lower attribute bits set */
 
 /* ── Directory entry first-byte status ── */
-#define FAT32_ENTRY_FREE      0x00  /* Slot never used / end of dir     */
-#define FAT32_ENTRY_DELETED   0xE5  /* Entry was deleted                 */
+#define FAT32_ENTRY_FREE      0x00  /* This slot has never been used; marks end of directory scan */
+#define FAT32_ENTRY_DELETED   0xE5  /* File was deleted; slot can be reused */
 
 /* ── FSInfo signatures ── */
-#define FAT32_FSINFO_SIG1     0x41615252  /* "RRaA"                      */
-#define FAT32_FSINFO_SIG2     0x61417272  /* "rrAa"                      */
-#define FAT32_FSINFO_SIG3     0xAA550000  /* Trail signature              */
+#define FAT32_FSINFO_SIG1     0x41615252    /* "RRaA" — lead signature at offset 0 */
+#define FAT32_FSINFO_SIG2     0x61417272    /* "rrAa" — structure signature at offset 484 */
+#define FAT32_FSINFO_SIG3     0xAA550000    /* Trail signature at offset 508 — validates the sector */
 
 /* ── Return codes ── */
-#define FAT32_OK              0
-#define FAT32_ERR_NOT_FOUND  -1
-#define FAT32_ERR_EXISTS     -2
-#define FAT32_ERR_FULL       -3
-#define FAT32_ERR_NAME       -4
-#define FAT32_ERR_SIZE       -5
-#define FAT32_ERR_DISK       -6
-#define FAT32_ERR_CORRUPT    -7
-#define FAT32_ERR_NOINIT     -8
+#define FAT32_OK              0    /* Operation completed successfully */
+#define FAT32_ERR_NOT_FOUND  -1    /* File does not exist in the root directory */
+#define FAT32_ERR_EXISTS     -2    /* A file with the same name already exists */
+#define FAT32_ERR_FULL       -3    /* No free directory slots or disk clusters available */
+#define FAT32_ERR_NAME       -4    /* Filename is invalid (too long, bad characters, etc.) */
+#define FAT32_ERR_SIZE       -5    /* File content exceeds FAT32_MAX_FILESIZE */
+#define FAT32_ERR_DISK       -6    /* ATA disk I/O operation failed */
+#define FAT32_ERR_CORRUPT    -7    /* FAT32 structure is inconsistent or unreadable */
+#define FAT32_ERR_NOINIT     -8    /* fat32_init() has not been called yet */
 
 /* ── Limits ── */
-#define FAT32_MAX_FILESIZE    (FAT32_SECTORS_PER_CLUSTER * FAT32_BYTES_PER_SECTOR * 8)
-#define FAT32_MAX_FILENAME    8     /* 8.3 short name only (no LFN)     */
-#define FAT32_MAX_EXT         3
+#define FAT32_MAX_FILESIZE    (FAT32_SECTORS_PER_CLUSTER * FAT32_BYTES_PER_SECTOR * 8)    /* Max bytes per file = 8 clusters = 32KB */
+#define FAT32_MAX_FILENAME    8     /* 8.3 format: up to 8 characters in the name part */
+#define FAT32_MAX_EXT         3     /* 8.3 format: up to 3 characters in the extension */
 
 /* ── Root dir entries cached in RAM ── */
-#define FAT32_ROOT_CACHE_ENTRIES  128
+#define FAT32_ROOT_CACHE_ENTRIES  128    /* Max files in root directory held in RAM at once */
+
 
 /* ============================================================
  * BIOS PARAMETER BLOCK (Boot Sector - Sector 0)
