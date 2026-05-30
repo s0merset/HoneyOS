@@ -14,21 +14,24 @@
 #include "ata.h"
 
 /* ── Global FAT32 state (in RAM) ── */
-static FAT32State fat32_state;
+static FAT32State fat32_state;    /* Single global instance; all fat32_ functions operate on this */
 
 /* ============================================================
  * INTERNAL HELPERS - No stdlib in bare metal
  * ============================================================ */
 
+/* f32_memset — Fill n bytes at dst with val (no stdlib memset available in bare metal) */
 static void f32_memset(unsigned char *dst, unsigned char val, unsigned int n) {
     for (unsigned int i = 0; i < n; i++) dst[i] = val;
 }
 
+/* f32_memcpy — Copy n bytes from src to dst (no stdlib memcpy available) */
 static void f32_memcpy(unsigned char *dst, const unsigned char *src,
                        unsigned int n) {
     for (unsigned int i = 0; i < n; i++) dst[i] = src[i];
 }
 
+/* f32_memcmp — Compare n bytes; returns 0 if equal, nonzero on first difference */
 static int f32_memcmp(const unsigned char *a, const unsigned char *b,
                       unsigned int n) {
     for (unsigned int i = 0; i < n; i++)
@@ -36,12 +39,14 @@ static int f32_memcmp(const unsigned char *a, const unsigned char *b,
     return 0;
 }
 
+/* f32_strlen — Return string length (no stdlib strlen available) */
 static unsigned int f32_strlen(const char *s) {
     unsigned int i = 0;
     while (s[i]) i++;
     return i;
 }
 
+/* f32_toupper — Convert lowercase ASCII letter to uppercase for 8.3 name normalization */
 static char f32_toupper(char c) {
     if (c >= 'a' && c <= 'z') return c - 32;
     return c;
@@ -355,10 +360,10 @@ int fat32_init() {
     for (unsigned int i = 0; i < fat_entries; i++)
         fat32_state.fat_table[i] = FAT32_CLUSTER_FREE;
 
-    /* Reserved entries */
-    fat32_state.fat_table[0] = 0x0FFFFFF8; /* Media type                */
-    fat32_state.fat_table[1] = FAT32_CLUSTER_EOF; /* End-of-chain       */
-    fat32_state.fat_table[2] = FAT32_CLUSTER_EOF; /* Root dir cluster   */
+    /* Reserved entries — FAT32 spec requires these exact values in clusters 0-2 */
+    fat32_state.fat_table[0] = 0x0FFFFFF8;             /* Media type (lower byte = 0xF8 = fixed disk) */
+    fat32_state.fat_table[1] = FAT32_CLUSTER_EOF;      /* End-of-chain marker, always set       */
+    fat32_state.fat_table[2] = FAT32_CLUSTER_EOF;      /* Root directory occupies cluster 2     */
 
     /* Init FSInfo cache */
     fat32_state.free_count      = fat_entries - 3;
