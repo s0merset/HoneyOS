@@ -1,5 +1,6 @@
 #include "../include/honeyfs.h"
 #include "../include/disk.h"
+#include "../include/honeyui.h"
 
 /*
  * honeyfs.c — HoneyOS FAT32 Filesystem Implementation
@@ -610,6 +611,8 @@ void fs_list(HoneyFS *fs) {
 
     FAT32DirEntry *entries = (FAT32DirEntry*)sector;
     int found = 0;
+    int start_x = ui_get_cursor_x();
+    int row = ui_get_cursor_y();
 
     for (int i = 0; i < 16; i++) {
         if (entries[i].name[0] == 0) break;    /* End of directory */
@@ -619,6 +622,7 @@ void fs_list(HoneyFS *fs) {
         if (entries[i].attributes & FAT32_ATTR_VOLUME_ID) continue;    /* Volume label */
 
         /* Print the 8-char name (skip trailing spaces) */
+        ui_set_cursor(start_x, row);
         print("  ", 0x0F);
         for (int j = 0; j < 8; j++) {
             if (entries[i].name[j] != ' ') vga_putchar(entries[i].name[j], 0x0A);
@@ -631,8 +635,12 @@ void fs_list(HoneyFS *fs) {
             }
         }
         println("", 0x0F);
+        row++;
         found = 1;
     }
 
-    if (!found) println("  (no files)", 0x0F);
+    if (!found) {
+        ui_set_cursor(start_x, row);
+        println("  (no files)", 0x0F);
+    }
 }

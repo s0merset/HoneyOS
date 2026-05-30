@@ -91,6 +91,7 @@ The main menu, file browser, command guide, shell header, and shutdown screen us
 | `ls` | List files in the FAT32 root directory |
 | `create <file>` | Create an empty file |
 | `write <file> <text>` | Write text to a file, creating it if needed |
+| `edit <file>` | Open the built-in text editor (ESC saves and exits) |
 | `read <file>` | Print file contents |
 | `delete <file>` | Delete a file and free its cluster chain |
 | `clear` | Clear the shell screen |
