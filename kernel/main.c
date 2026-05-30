@@ -1,49 +1,71 @@
 /* ============================================================
  * HoneyOS Kernel - main.c
- * Interactive Shell + HoneyFS (FAT32)
+ * CMSC 125 — Operating Systems, UP Cebu
+ *
+ * This is the top-level kernel file. It is the first C function
+ * called after boot.asm sets up the stack and jumps to kmain().
+ *
+ * Responsibilities:
+ *   - Initialize the screen and filesystem
+ *   - Display the main menu and dispatch to feature screens
+ *   - Run the interactive File Manager Shell
+ *   - Parse and execute shell commands (ls, create, write, read, delete)
  * ============================================================ */
 
 #include "honeyfs.h"
 #include "keyboard.h"
 #include "honeyui.h"
 
-#define INPUT_MAX 256
+#define INPUT_MAX 256    /* Maximum characters in a shell input line */
 
+/* Global filesystem context — shared by all functions in this file */
 static HoneyFS honey_fs;
 
-/* ── String helpers ── */
+/* ── String Helpers (no stdlib in bare-metal) ── */
+
+/* str_cmp — Return 0 if strings are equal, nonzero otherwise */
 static int str_cmp(const char *a, const char *b) {
     while (*a && *b && *a == *b) { a++; b++; }
     return *a - *b;
 }
+
+/* str_cpy — Copy at most max-1 characters from s to d, always null-terminate */
 static void str_cpy(char *d, const char *s, int max) {
     int i=0; while(s[i] && i<max-1){ d[i]=s[i]; i++; } d[i]='\0';
 }
+
+/* str_starts — Return 1 if s begins with the given prefix, 0 otherwise */
 static int str_starts(const char *s, const char *prefix) {
     int i=0;
     while(prefix[i]){ if(s[i]!=prefix[i]) return 0; i++; }
     return 1;
 }
 
+/* ── Screen Setup ── */
+
+/* init_screen — Clear the screen with black background before anything is drawn */
 void init_screen() { 
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK)); 
 }
 
+/* These wrappers let honeyfs.c call print/println without including honeyui.h directly */
 void vga_putchar(char c, unsigned char color) { ui_putchar(c, color); }
 void print(const char *s, unsigned char color) { ui_print(s, color); }
 void println(const char *s, unsigned char color) { ui_println(s, color); }
 
+/* wait_for_key — Display a "press any key" prompt and block until input */
 static void wait_for_key() {
     ui_println("", HONEYUI_THEME.text);
     ui_center("Press any key to return", 22, HONEYUI_THEME.accent);
     keyboard_read();
 }
 
-/* ── Shell Helpers ── */
+/* ── Shell Output Helpers ── */
 void print_prompt() { ui_prompt("honey:/ > ", &HONEYUI_THEME); }
 void print_ok(const char *msg) { ui_print("  [OK] ", HONEYUI_THEME.success); ui_println(msg, HONEYUI_THEME.text); }
 void print_err(const char *msg) { ui_print("  [ERR] ", HONEYUI_THEME.danger); ui_println(msg, HONEYUI_THEME.text); }
 
+/* cmd_help — Print a formatted table of all available shell commands */
 void cmd_help() {
     ui_println("", HONEYUI_THEME.text);
     ui_rule(8, ui_get_cursor_y(), 64, HONEYUI_THEME.frame);
@@ -61,6 +83,7 @@ void cmd_help() {
     ui_print("  help                      ", HONEYUI_THEME.accent);  ui_println("- show this help menu", HONEYUI_THEME.text);
 }
 
+/* cmd_ls — List all files in the root directory with decorative borders */
 void cmd_ls() {
     ui_println("", HONEYUI_THEME.text);
     ui_rule(2, ui_get_cursor_y(), 40, HONEYUI_THEME.frame);
@@ -70,29 +93,48 @@ void cmd_ls() {
     ui_println("", HONEYUI_THEME.text);
 }
 
-/* ── Parser ── */
+/* ── Command Argument Parser ── */
+
+/* first_space — Return the index of the first space in s, or -1 if none */
 static int first_space(const char *s) { for (int i = 0; s[i]; i++) if (s[i] == ' ') return i; return -1; }
+
+/* get_arg1 — Extract the first argument after the command word */
 static void get_arg1(const char *input, char *out, int max) {
     int sp = first_space(input);
     if (sp < 0) { out[0] = '\0'; return; }
     str_cpy(out, input + sp + 1, max);
+    /* Truncate at the next space (arg1 ends at second word) */
     for (int i = 0; out[i]; i++) if (out[i] == ' ') { out[i] = '\0'; break; }
 }
+
+/* get_arg2_rest — Extract everything after the second word (used for "write <file> <text>") */
 static void get_arg2_rest(const char *input, char *out, int max) {
     int sp = first_space(input);
     if (sp < 0) { out[0] = '\0'; return; }
     int i = sp + 1;
-    while (input[i] && input[i] != ' ') i++;
-    while (input[i] == ' ') i++;
+    while (input[i] && input[i] != ' ') i++;    /* Skip first argument */
+    while (input[i] == ' ') i++;    /* Skip any extra spaces */
     str_cpy(out, input + i, max);
 }
 
+/*
+ * handle_command — Parse and dispatch one shell command.
+ *
+ * Supported commands:
+ *   ls                        — list files
+ *   create <name>             — create empty file
+ *   write  <name> <content>   — write text to file
+ *   read   <name>             — print file contents
+ *   delete <name>             — remove file
+ *   clear                     — clear screen
+ *   help                      — show command reference
+ */
 void handle_command(const char *input) {
     char arg1[FS_MAX_FILENAME];
     char arg2[FS_MAX_FILESIZE + 1];
     ui_println("", HONEYUI_THEME.text);
 
-    if (str_cmp(input, "") == 0) return;
+    if (str_cmp(input, "") == 0) return;    /* Empty input, do nothing */
     else if (str_cmp(input, "help") == 0) cmd_help();
     else if (str_cmp(input, "ls") == 0) cmd_ls();
     else if (str_cmp(input, "clear") == 0) ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
@@ -123,8 +165,9 @@ void handle_command(const char *input) {
     } else print_err("Unknown command.");
 }
 
-/* ── Init ── */
+/* ── Screen Renderers ── */
 
+/* show_menu — Render the main menu and wait for a keypress */
 void show_menu() {
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
     ui_center("HONEYOS", 2, HONEYUI_THEME.frame);
@@ -141,6 +184,10 @@ void show_menu() {
     ui_print("Choose an action: ", HONEYUI_THEME.title);
 }
 
+/*
+ * read_line — Blocking line input from keyboard into buf.
+ * Supports backspace. Returns when Enter ('\n') is pressed.
+ */
 void read_line(char *buf) {
     int i = 0;
     while (1) {
@@ -151,10 +198,12 @@ void read_line(char *buf) {
     }
 }
 
+/* init_filesystem — Mount the FAT32 volume on the virtual hard disk */
 void init_filesystem() {
     fs_init(&honey_fs);
 }
 
+/* show_file_browser — Read-only view of all files currently on disk */
 void show_file_browser() {
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
     ui_center("Saved Files", 2, HONEYUI_THEME.frame);
@@ -165,6 +214,7 @@ void show_file_browser() {
     wait_for_key();
 }
 
+/* show_command_guide — Static reference screen listing all shell commands */
 void show_command_guide() {
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
     ui_center("Command Guide", 2, HONEYUI_THEME.frame);
@@ -185,6 +235,7 @@ void show_command_guide() {
     wait_for_key();
 }
 
+/* launch_shell — Run the interactive File Manager Shell until the user types "exit" */
 void launch_shell() {
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
     ui_center("HoneyOS File Manager", 1, HONEYUI_THEME.frame);
@@ -201,16 +252,23 @@ void launch_shell() {
     }
 }
 
+/* shutdown_system — Halt the CPU; VirtualBox can then be safely closed */
 void shutdown_system() {
     ui_clear(UI_COLOR(UI_WHITE, UI_BLACK));
     ui_panel(12, 8, 56, 7, "Shutdown", &HONEYUI_THEME);
     ui_center("HoneyOS has been halted", 11, HONEYUI_THEME.frame);
     ui_center("You may close the virtual machine window.", 12, HONEYUI_THEME.accent);
     while (1) {
-        __asm__("hlt");
+        __asm__("hlt");    /* CPU halts here; loop prevents any accidental continuation */
     }
 }
 
+/*
+ * kmain — Kernel entry point called from boot.asm.
+ *
+ * 1. Initialize screen and FAT32 filesystem
+ * 2. Loop forever: show main menu, read key, dispatch to feature
+ */
 void kmain() {
     init_screen();
     init_filesystem();
@@ -218,7 +276,7 @@ void kmain() {
     while(1) {
         show_menu();
         
-        char choice = keyboard_read(); // Wait for key
+        char choice = keyboard_read(); /* Block until the user presses 1–4 */
         
         if (choice == '1') {
             launch_shell();
@@ -227,7 +285,7 @@ void kmain() {
         } else if (choice == '3') {
             show_command_guide();
         } else if (choice == '4') {
-            shutdown_system();
+            shutdown_system();    /* Any other key simply redraws the menu */
         }
     }
 }
